@@ -19,20 +19,17 @@ local class = {
 }
 setmetatable(class, class)
 
-function class:extends(...)
+function class:is(...)
   local parents = {...}
   move(parents, 1, #parents, #self.parents + 1, self.parents)
   return self
 end
 function class:__call(prototype)
-  local exposed = {}
-  setmetatable(exposed, exposed)
-  exposed.prototype = prototype
   local parents = self.parents
   local parent_protos = {}
   for _, parent in pairs(parents) do insert(parent_protos, parent.prototype) end
-  exposed.parents = parent_protos
-  local function merge(lists, output)
+  local mro = {prototype}
+  local function merge(lists)
     local nonempty = {}
     for _, list in ipairs(lists) do
       if #list > 0 then insert(nonempty, list) end
@@ -63,7 +60,7 @@ function class:__call(prototype)
         end
       end
       assert(element, 'Cannot resolve MRO')
-      insert(output, element)
+      insert(mro, element)
       for _, list in pairs(nonempty) do
         if list[pos[list]] == element then
           pos[list] = pos[list] + 1
@@ -72,13 +69,11 @@ function class:__call(prototype)
       end
     end
   end
-  local mro = {prototype}
   merge((function()
     local lists = {parent_protos}
     for _, parent in pairs(parents) do insert(lists, parent.mro) end
     return lists
-  end)(), mro)
-  exposed.mro = mro
+  end)())
   local specials = {
     __prototype = prototype,
     __parents = parent_protos,
@@ -91,20 +86,28 @@ function class:__call(prototype)
           if value then return i, value end
         end
       end, mro, 0
+    end,
+    __is = function(cls)
+      for _, parent in pairs(mro) do if parent == cls then return true end end
+      return false
     end
   }
-  function exposed:__call(...)
-    local obj = {}
-    setmetatable(obj, {
-      __index = function(_, key)
-        if specials[key] then return specials[key] end
-        for _, value in specials.__resolve(key) do return value end
-      end
-    })
-    if obj.__init then obj:__init(...) end
-    return obj
-  end
-  return exposed
+  return setmetatable({
+    prototype = prototype,
+    parents = parent_protos,
+    mro = mro
+  }, {
+    __call = function(_, ...)
+      local obj = setmetatable({}, {
+        __index = function(_, key)
+          if specials[key] then return specials[key] end
+          for _, value in specials.__resolve(key) do return value end
+        end
+      })
+      if obj.__init then obj:__init(...) end
+      return obj
+    end
+  })
 end
 
 return class
