@@ -70,8 +70,9 @@ function class:__call(prototype)
     end
   end
   merge((function()
-    local lists = {parent_protos}
+    local lists = {}
     for _, parent in pairs(parents) do insert(lists, parent.mro) end
+    insert(lists, parent_protos)
     return lists
   end)())
   local specials = {

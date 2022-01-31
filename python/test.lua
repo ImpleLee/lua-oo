@@ -43,4 +43,4 @@ local C = class:is(A) {name = 'C'}
 local D = class:is(B) {name = 'D'}
 local E = class:is(C, D) {name = 'E'}
 for i, name in E().__resolve('name') do print(i, name) end
--- print E C D A B
+-- print E C A D B
